@@ -1,1 +1,174 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>クリックチャレンジ</title>
+  <style>
+    :root{
+      --bg1:#fff7e6; --bg2:#ffe6f0;
+      --card:#ffffff; --accent:#e91e63;
+    }
+    html,body{height:100%;margin:0}
+    body{
+      display:grid; place-items:center;
+      font-family: system-ui,-apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background: linear-gradient(180deg,var(--bg1),var(--bg2));
+      padding:24px;
+    }
+    .card{
+      width:min(720px,95%);
+      background:var(--card);
+      border-radius:16px;
+      box-shadow:0 12px 40px rgba(0,0,0,0.12);
+      padding:28px;
+      text-align:center;
+      user-select:none;
+      cursor:pointer;
+    }
+    .headline{font-size:40px;font-weight:700;color:#111;margin:8px 0;}
+    .big-number{font-size:96px;font-weight:900;color:var(--accent);line-height:1;}
+    .sub{color:#444;margin-top:6px;font-size:16px;}
+    .counter{margin-top:18px;font-size:18px;color:#333;}
+    .controls{margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+    button,input{
+      padding:10px 14px;border-radius:10px;border:1px solid #ddd;
+      font-weight:600;
+    }
+    button{
+      background:#111;color:#fff;cursor:pointer;border:0;
+    }
+    button.secondary{background:#fff;border:1px solid #ddd;color:#111}
+    button:disabled{opacity:0.6;cursor:not-allowed}
+    .smallnote{margin-top:12px;color:#666;font-size:13px}
+    .time{margin-top:12px;font-size:18px;color:#e91e63;font-weight:bold;}
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="headline" id="headlineText"></div>
+    <div class="sub" id="subText"></div>
 
+    <div class="counter" id="remaining"></div>
+    <div class="time" id="timerDisplay"></div>
+
+    <div class="controls">
+      <input type="number" id="targetInput" min="1" value="100">
+      <button id="clickBtn">クリック</button>
+      <button id="resetBtn" class="secondary">リセット</button>
+    </div>
+
+    <div class="smallnote">※ 進捗と目標回数はこのブラウザに保存されます。</div>
+  </div>
+
+  <script>
+    (function(){
+      const COUNT_KEY = 'click_count_v4';
+      const TIME_KEY  = 'click_start_time_v4';
+      const TARGET_KEY = 'click_target_v4';
+
+      const card = document.getElementById('card');
+      const clickBtn = document.getElementById('clickBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const remainingEl = document.getElementById('remaining');
+      const headline = document.getElementById('headlineText');
+      const sub = document.getElementById('subText');
+      const timerDisplay = document.getElementById('timerDisplay');
+      const targetInput = document.getElementById('targetInput');
+
+      let count = 0;
+      let startTime = null;
+      let timerInterval = null;
+
+      // 保存データ読み込み
+      count = Number(localStorage.getItem(COUNT_KEY)) || 0;
+      startTime = Number(localStorage.getItem(TIME_KEY)) || null;
+      targetInput.value = Number(localStorage.getItem(TARGET_KEY)) || 100;
+
+      function formatTime(sec){
+        const m = Math.floor(sec/60);
+        const s = sec % 60;
+        return m ? `${m}分${s}秒` : `${s}秒`;
+      }
+
+      function updateTimer(){
+        if(!startTime) return;
+        const elapsed = Math.floor((Date.now()-startTime)/1000);
+        timerDisplay.textContent = `経過時間: ${formatTime(elapsed)}`;
+      }
+
+      function updateUI(){
+        const MAX = Number(targetInput.value);
+        const remaining = Math.max(0, MAX - count);
+
+        if(count >= MAX){
+          clearInterval(timerInterval);
+          const total = Math.floor((Date.now()-startTime)/1000);
+          headline.textContent = "完了！";
+          sub.textContent = `かかった時間：${formatTime(total)}`;
+          remainingEl.textContent = "達成！";
+          timerDisplay.textContent = "";
+          clickBtn.disabled = true;
+          card.style.cursor = 'default';
+        }else{
+          headline.innerHTML = `残り <span class="big-number">${remaining}</span> 回`;
+          sub.textContent = "カードまたはボタンをクリックしてください。";
+          remainingEl.textContent = `残り: ${remaining} 回`;
+          clickBtn.disabled = false;
+          card.style.cursor = 'pointer';
+          updateTimer();
+        }
+      }
+
+      function save(){
+        localStorage.setItem(COUNT_KEY, count);
+        localStorage.setItem(TARGET_KEY, targetInput.value);
+        if(startTime) localStorage.setItem(TIME_KEY, startTime);
+      }
+
+      function doClick(){
+        const MAX = Number(targetInput.value);
+        if(count >= MAX) return;
+        if(!startTime){
+          startTime = Date.now();
+          timerInterval = setInterval(updateTimer,1000);
+        }
+        count++;
+        save();
+        updateUI();
+      }
+
+      // 初期描画
+      if(startTime && count < Number(targetInput.value)){
+        timerInterval = setInterval(updateTimer,1000);
+      }
+      updateUI();
+
+      clickBtn.onclick = e => { e.stopPropagation(); doClick(); };
+      card.onclick = e => {
+        if(e.target === clickBtn || e.target === resetBtn || e.target === targetInput) return;
+        doClick();
+      };
+
+      targetInput.onchange = () => {
+        count = 0;
+        startTime = null;
+        localStorage.removeItem(COUNT_KEY);
+        localStorage.removeItem(TIME_KEY);
+        save();
+        updateUI();
+      };
+
+      resetBtn.onclick = e => {
+        e.stopPropagation();
+        if(!confirm('本当にリセットしますか？')) return;
+        count = 0;
+        startTime = null;
+        localStorage.clear();
+        clearInterval(timerInterval);
+        updateUI();
+      };
+    })();
+  </script>
+</body>
+</html>
